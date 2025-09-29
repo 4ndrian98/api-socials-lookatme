@@ -1,0 +1,10 @@
+PS C:\lookatme\BACKEND-PROVA-G> 
+docker compose up -d
+
+pgmyadmin4
+http://localhost:5050
+PGADMIN_DEFAULT_EMAIL=admin@lookatme.com
+PGADMIN_DEFAULT_PASSWORD=user!Lookatme25
+
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+

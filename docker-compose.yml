@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+    ports:
+      - "${HOST_DB_PORT}:5432"          # host -> container
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # opzionale: inizializza schema al primo avvio (metti lo schema.sql nella stessa cartella)
+      # - ./schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin4
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "${HOST_PGADMIN_PORT}:80"       # http://localhost:5050
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      # opzionale: autoconfigurazione server alla prima esecuzione
+      # - ./servers.json:/pgadmin4/servers.json:ro
+
+volumes:
+  pgdata:
+  pgadmin_data:
