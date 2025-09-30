@@ -109,3 +109,99 @@ class VetrinaOut(BaseModel):
 class DashboardOut(VetrinaOut):
     andamento_sentiment: list[float] = []
     suggerimenti: list[str] = []
+
+
+# -------- BRIGHT DATA SCHEMAS --------
+
+class BrightDataJobBase(BaseModel):
+    dataset_type: str
+    dataset_id: str
+    parameters: Optional[Dict[str, Any]] = {}
+
+class BrightDataJobCreate(BrightDataJobBase):
+    pass
+
+class BrightDataJob(BrightDataJobBase):
+    id: int
+    job_id: str
+    status: str
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+    result_count: int = 0
+    error_message: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class BrightDataResultBase(BaseModel):
+    source_url: str
+    platform: str
+    raw_data: Dict[str, Any]
+    
+class BrightDataResultCreate(BrightDataResultBase):
+    job_id: int
+
+class BrightDataResult(BrightDataResultBase):
+    id: int
+    job_id: int
+    extracted_at: datetime
+    processed: str = "pending"
+    followers_count: Optional[int] = None
+    posts_count: Optional[int] = None
+    reviews_count: Optional[int] = None
+    rating: Optional[Decimal] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class EsercenteSocialMappingBase(BaseModel):
+    id_esercente: int
+    platform: str
+    url: str
+    crawl_params: Optional[Dict[str, Any]] = {}
+
+class EsercenteSocialMappingCreate(EsercenteSocialMappingBase):
+    pass
+
+class EsercenteSocialMapping(EsercenteSocialMappingBase):
+    id: int
+    is_active: str = "true"
+    created_at: datetime
+    last_crawled: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class WeeklyCrawlScheduleBase(BaseModel):
+    week_start: date
+
+class WeeklyCrawlScheduleCreate(WeeklyCrawlScheduleBase):
+    pass
+
+class WeeklyCrawlSchedule(WeeklyCrawlScheduleBase):
+    id: int
+    status: str = "pending"
+    triggered_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    total_jobs: int = 0
+    completed_jobs: int = 0
+    failed_jobs: int = 0
+    notes: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+# -------- API REQUEST/RESPONSE SCHEMAS --------
+
+class TriggerCrawlRequest(BaseModel):
+    platform: str  # 'instagram', 'facebook', 'googlemaps'
+    urls: List[str]
+    params: Optional[Dict[str, Any]] = {}
+
+class TriggerCrawlResponse(BaseModel):
+    job_id: str
+    message: str
+    dataset_type: str
+    url_count: int
+
+class CrawlStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    progress: Optional[Dict[str, Any]] = {}
+    results_available: bool = False
+
+class SocialMappingRequest(BaseModel):
+    id_esercente: int
+    mappings: List[Dict[str, Any]]  # [{'platform': 'instagram', 'url': '...', 'params': {...}}]
