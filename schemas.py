@@ -26,7 +26,8 @@ class EsercenteBase(BaseModel):
     certificazione_2: Optional[str] = None
     immagine_certificazione_2: Optional[str] = None
 
-class EsercenteCreate(EsercenteBase): pass
+class EsercenteCreate(EsercenteBase): 
+    pass
 
 class EsercenteUpdate(BaseModel):
     nome: Optional[str] = None
