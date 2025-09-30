@@ -3,7 +3,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 from database import SessionLocal, engine
-import models, schemas
+import models
+import schemas
 from auth import authenticate, create_access_token, hash_password, get_db
 from services import compute_sentiment, sentiment_trend, build_suggestions
 from fastapi.middleware.cors import CORSMiddleware
@@ -203,7 +204,7 @@ def dashboard(id_esercente: int, token: str = Depends(require_token), db: Sessio
 
 from brightdata_service import brightdata_service
 from models import BrightDataJob, BrightDataResult, EsercenteSocialMapping, WeeklyCrawlSchedule
-from datetime import datetime, timedelta
+from datetime import timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -404,7 +405,7 @@ def trigger_weekly_crawl(
     """
     Avvia il crawl settimanale di tutti gli esercenti con mappature attive
     """
-    from datetime import date, timedelta
+    from datetime import date
     
     # Calcola il lunedì di questa settimana
     today = date.today()
@@ -501,7 +502,7 @@ def get_weekly_crawl_status(
     """
     Ottieni lo status del crawl settimanale corrente
     """
-    from datetime import date, timedelta
+    from datetime import date
     
     # Calcola il lunedì di questa settimana
     today = date.today()
