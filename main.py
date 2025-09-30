@@ -8,6 +8,11 @@ import schemas
 from auth import authenticate, create_access_token, hash_password, get_db
 from services import compute_sentiment, sentiment_trend, build_suggestions
 from fastapi.middleware.cors import CORSMiddleware
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 models.Base.metadata.create_all(bind=engine)
