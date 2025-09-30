@@ -83,8 +83,10 @@ class RilevazioneBase(BaseModel):
     neutro: Optional[Decimal] = None
     n_passanti: Optional[int] = None
 
-class RilevazioneCreate(RilevazioneBase): pass
-class RilevazioneUpdate(RilevazioneBase): pass
+class RilevazioneCreate(RilevazioneBase): 
+    pass
+class RilevazioneUpdate(RilevazioneBase): 
+    pass
 
 class Rilevazione(RilevazioneBase):
     id: int
