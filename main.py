@@ -198,3 +198,349 @@ def dashboard(id_esercente: int, token: str = Depends(require_token), db: Sessio
         "andamento_sentiment": trend,
         "suggerimenti": tips,
     }
+
+# ---------- BRIGHT DATA INTEGRATION ENDPOINTS ----------
+
+from brightdata_service import brightdata_service
+from models import BrightDataJob, BrightDataResult, EsercenteSocialMapping, WeeklyCrawlSchedule
+from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
+
+@app.post("/api/brightdata/trigger", response_model=schemas.TriggerCrawlResponse)
+def trigger_brightdata_crawl(
+    payload: schemas.TriggerCrawlRequest,
+    token: str = Depends(require_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Avvia un job di crawling su Bright Data
+    """
+    try:
+        # Trigger del crawl
+        response = brightdata_service.trigger_crawl(
+            platform=payload.platform,
+            urls=payload.urls,
+            params=payload.params or {}
+        )
+        
+        if not response.get("success"):
+            raise HTTPException(500, f"Errore nel trigger crawl: {response.get('error')}")
+        
+        # Salva il job nel database
+        job = brightdata_service.save_job_to_db(
+            db=db,
+            platform=payload.platform,
+            urls=payload.urls,
+            params=payload.params or {},
+            response=response
+        )
+        
+        return schemas.TriggerCrawlResponse(
+            job_id=job.job_id,
+            message=f"Crawl avviato con successo per {payload.platform}",
+            dataset_type=payload.platform,
+            url_count=len(payload.urls)
+        )
+        
+    except Exception as e:
+        raise HTTPException(500, f"Errore interno: {str(e)}")
+
+
+@app.get("/api/brightdata/status/{job_id}", response_model=schemas.CrawlStatusResponse)
+def get_crawl_status(
+    job_id: str,
+    token: str = Depends(require_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Ottieni lo status di un job di crawling
+    """
+    # Verifica il job nel database
+    job = db.query(BrightDataJob).filter(BrightDataJob.job_id == job_id).first()
+    if not job:
+        raise HTTPException(404, "Job non trovato")
+    
+    # Ottieni status da Bright Data
+    status_response = brightdata_service.get_job_status(job_id)
+    
+    # Aggiorna il job nel database se necessario
+    if status_response.get("status") in ["completed", "failed"]:
+        job.status = status_response["status"]
+        if status_response["status"] == "completed":
+            job.completed_at = datetime.utcnow()
+        db.commit()
+    
+    return schemas.CrawlStatusResponse(
+        job_id=job_id,
+        status=status_response.get("status", "unknown"),
+        progress=status_response.get("progress", {}),
+        results_available=status_response.get("status") == "completed"
+    )
+
+
+@app.get("/api/brightdata/results/{job_id}")
+def get_crawl_results(
+    job_id: str,
+    auto_integrate: bool = True,
+    token: str = Depends(require_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Recupera e salva i risultati di un job completato
+    """
+    # Verifica il job nel database
+    job = db.query(BrightDataJob).filter(BrightDataJob.job_id == job_id).first()
+    if not job:
+        raise HTTPException(404, "Job non trovato")
+    
+    if job.status != "completed":
+        # Prova a controllare lo status
+        status_response = brightdata_service.get_job_status(job_id)
+        if status_response.get("status") != "completed":
+            raise HTTPException(400, "Job non ancora completato")
+    
+    # Recupera i risultati da Bright Data
+    results_response = brightdata_service.get_job_results(job_id)
+    
+    if not results_response.get("success"):
+        raise HTTPException(500, f"Errore nel recupero risultati: {results_response.get('error')}")
+    
+    results_data = results_response.get("data", [])
+    
+    # Salva i risultati nel database
+    brightdata_service.save_results_to_db(db, job, results_data)
+    
+    # Integrazione automatica con esercenti se richiesta
+    if auto_integrate:
+        brightdata_service.integrate_with_esercenti(db, job)
+    
+    return {
+        "job_id": job_id,
+        "results_count": len(results_data),
+        "status": "processed",
+        "integrated": auto_integrate
+    }
+
+
+@app.post("/api/brightdata/social-mapping")
+def create_social_mapping(
+    payload: schemas.SocialMappingRequest,
+    token: str = Depends(require_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Crea mappature tra esercenti e URL social per crawling automatico
+    """
+    # Verifica che l'esercente esista
+    esercente = db.get(models.Esercente, payload.id_esercente)
+    if not esercente:
+        raise HTTPException(404, "Esercente non trovato")
+    
+    created_mappings = []
+    
+    for mapping_data in payload.mappings:
+        # Controlla se esiste già
+        existing = db.query(EsercenteSocialMapping).filter(
+            EsercenteSocialMapping.id_esercente == payload.id_esercente,
+            EsercenteSocialMapping.platform == mapping_data["platform"],
+            EsercenteSocialMapping.url == mapping_data["url"]
+        ).first()
+        
+        if not existing:
+            mapping = EsercenteSocialMapping(
+                id_esercente=payload.id_esercente,
+                platform=mapping_data["platform"],
+                url=mapping_data["url"],
+                crawl_params=mapping_data.get("params", {})
+            )
+            db.add(mapping)
+            created_mappings.append(mapping_data)
+    
+    db.commit()
+    
+    return {
+        "esercente_id": payload.id_esercente,
+        "mappings_created": len(created_mappings),
+        "mappings": created_mappings
+    }
+
+
+@app.get("/api/brightdata/social-mapping/{id_esercente}")
+def get_social_mappings(
+    id_esercente: int,
+    token: str = Depends(require_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Ottieni le mappature social di un esercente
+    """
+    mappings = db.query(EsercenteSocialMapping).filter(
+        EsercenteSocialMapping.id_esercente == id_esercente
+    ).all()
+    
+    return {
+        "esercente_id": id_esercente,
+        "mappings": [
+            {
+                "id": m.id,
+                "platform": m.platform,
+                "url": m.url,
+                "params": m.crawl_params,
+                "is_active": m.is_active,
+                "last_crawled": m.last_crawled
+            }
+            for m in mappings
+        ]
+    }
+
+
+@app.post("/api/brightdata/weekly-crawl")
+def trigger_weekly_crawl(
+    token: str = Depends(require_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Avvia il crawl settimanale di tutti gli esercenti con mappature attive
+    """
+    from datetime import date, timedelta
+    
+    # Calcola il lunedì di questa settimana
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    
+    # Controlla se il crawl settimanale è già stato avviato
+    existing_schedule = db.query(WeeklyCrawlSchedule).filter(
+        WeeklyCrawlSchedule.week_start == week_start,
+        WeeklyCrawlSchedule.status.in_(["pending", "running"])
+    ).first()
+    
+    if existing_schedule:
+        return {
+            "message": "Crawl settimanale già in corso per questa settimana",
+            "schedule_id": existing_schedule.id,
+            "week_start": week_start
+        }
+    
+    # Crea il record di schedulazione
+    schedule = WeeklyCrawlSchedule(
+        week_start=week_start,
+        status="running",
+        triggered_at=datetime.utcnow()
+    )
+    db.add(schedule)
+    db.commit()
+    
+    # Ottieni tutte le mappature attive
+    active_mappings = db.query(EsercenteSocialMapping).filter(
+        EsercenteSocialMapping.is_active == "true"
+    ).all()
+    
+    # Raggruppa per platform
+    platform_urls = {}
+    for mapping in active_mappings:
+        if mapping.platform not in platform_urls:
+            platform_urls[mapping.platform] = []
+        
+        url_data = {"url": mapping.url}
+        if mapping.crawl_params:
+            url_data.update(mapping.crawl_params)
+        
+        platform_urls[mapping.platform].append(url_data)
+    
+    # Avvia i job per ogni platform
+    triggered_jobs = []
+    for platform, urls_data in platform_urls.items():
+        urls = [item["url"] for item in urls_data]
+        params = urls_data[0] if urls_data else {}
+        params.pop("url", None)  # Rimuovi url dai params se presente
+        
+        try:
+            response = brightdata_service.trigger_crawl(
+                platform=platform,
+                urls=urls,
+                params=params
+            )
+            
+            if response.get("success"):
+                # Salva il job nel database
+                job = brightdata_service.save_job_to_db(
+                    db=db,
+                    platform=platform,
+                    urls=urls,
+                    params=params,
+                    response=response
+                )
+                triggered_jobs.append({
+                    "platform": platform,
+                    "job_id": job.job_id,
+                    "urls_count": len(urls)
+                })
+        
+        except Exception as e:
+            logger.error(f"Error triggering weekly crawl for {platform}: {e}")
+    
+    # Aggiorna il schedule
+    schedule.total_jobs = len(triggered_jobs)
+    db.commit()
+    
+    return {
+        "message": f"Crawl settimanale avviato con {len(triggered_jobs)} job",
+        "schedule_id": schedule.id,
+        "week_start": week_start,
+        "jobs": triggered_jobs
+    }
+
+
+@app.get("/api/brightdata/weekly-crawl/status")
+def get_weekly_crawl_status(
+    token: str = Depends(require_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Ottieni lo status del crawl settimanale corrente
+    """
+    from datetime import date, timedelta
+    
+    # Calcola il lunedì di questa settimana
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())
+    
+    schedule = db.query(WeeklyCrawlSchedule).filter(
+        WeeklyCrawlSchedule.week_start == week_start
+    ).first()
+    
+    if not schedule:
+        return {
+            "message": "Nessun crawl settimanale trovato per questa settimana",
+            "week_start": week_start
+        }
+    
+    # Ottieni i job correlati
+    jobs = db.query(BrightDataJob).filter(
+        BrightDataJob.created_at >= datetime.combine(week_start, datetime.min.time())
+    ).all()
+    
+    completed_jobs = len([j for j in jobs if j.status == "completed"])
+    failed_jobs = len([j for j in jobs if j.status == "failed"])
+    
+    return {
+        "schedule_id": schedule.id,
+        "week_start": week_start,
+        "status": schedule.status,
+        "triggered_at": schedule.triggered_at,
+        "completed_at": schedule.completed_at,
+        "total_jobs": schedule.total_jobs,
+        "completed_jobs": completed_jobs,
+        "failed_jobs": failed_jobs,
+        "jobs": [
+            {
+                "job_id": j.job_id,
+                "platform": j.dataset_type,
+                "status": j.status,
+                "result_count": j.result_count
+            }
+            for j in jobs
+        ]
+    }
