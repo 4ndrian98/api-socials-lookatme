@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
-from datetime import date, time
+from typing import Optional, Dict, Any, List
+from datetime import date, time, datetime
 from decimal import Decimal
 
 # -------- LOGIN --------
