@@ -56,7 +56,8 @@ class DatoCrawledBase(BaseModel):
     n_followers_ig: Optional[int] = 0
     stelle_google: Optional[Decimal] = None
 
-class DatoCrawledCreate(DatoCrawledBase): pass
+class DatoCrawledCreate(DatoCrawledBase): 
+    pass
 
 class DatoCrawledUpdate(BaseModel):
     id_esercente: Optional[int] = None
