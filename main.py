@@ -17,6 +17,19 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 models.Base.metadata.create_all(bind=engine)
 
+# Avvia lo scheduler settimanale
+from weekly_scheduler import weekly_scheduler
+
+@app.on_event("startup")
+def start_scheduler():
+    weekly_scheduler.start_all_schedules()
+    logger.info("Weekly scheduler started successfully")
+
+@app.on_event("shutdown")
+def stop_scheduler():
+    weekly_scheduler.stop()
+    logger.info("Weekly scheduler stopped")
+
 # configurazione CORS
 origins = [
     "http://localhost:3000",   # se usi React dev server
