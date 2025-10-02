@@ -21,6 +21,7 @@ class EsercenteBase(BaseModel):
     pagina_web_fb: Optional[str] = None
     pagina_ig: Optional[str] = None
     google_recensioni: Optional[str] = None
+    tripadvisor_url: Optional[str] = None
     certificazione_1: Optional[str] = None
     immagine_certificazione_1: Optional[str] = None
     certificazione_2: Optional[str] = None
@@ -38,6 +39,7 @@ class EsercenteUpdate(BaseModel):
     pagina_web_fb: Optional[str] = None
     pagina_ig: Optional[str] = None
     google_recensioni: Optional[str] = None
+    tripadvisor_url: Optional[str] = None
     certificazione_1: Optional[str] = None
     immagine_certificazione_1: Optional[str] = None
     certificazione_2: Optional[str] = None
