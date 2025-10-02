@@ -70,6 +70,8 @@ class DatoCrawledUpdate(BaseModel):
     n_fan_facebook: Optional[int] = None
     n_followers_ig: Optional[int] = None
     stelle_google: Optional[Decimal] = None
+    tripadvisor_rating: Optional[Decimal] = None
+    tripadvisor_reviews: Optional[int] = None
 
 class DatoCrawled(DatoCrawledBase):
     id: int
