@@ -57,6 +57,8 @@ class DatoCrawledBase(BaseModel):
     n_fan_facebook: Optional[int] = 0
     n_followers_ig: Optional[int] = 0
     stelle_google: Optional[Decimal] = None
+    tripadvisor_rating: Optional[Decimal] = None
+    tripadvisor_reviews: Optional[int] = None
 
 class DatoCrawledCreate(DatoCrawledBase): 
     pass
