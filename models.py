@@ -27,6 +27,7 @@ class Esercente(Base):
     pagina_web_fb = Column(String)
     pagina_ig = Column(String)
     google_recensioni = Column(String)
+    tripadvisor_url = Column(String)
     certificazione_1 = Column(String)
     immagine_certificazione_1 = Column(String)
     certificazione_2 = Column(String)
