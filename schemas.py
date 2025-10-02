@@ -107,6 +107,8 @@ class VetrinaOut(BaseModel):
     n_fan_facebook: Optional[int]
     n_followers_ig: Optional[int]
     stelle_google: Optional[Decimal]
+    tripadvisor_rating: Optional[Decimal]
+    tripadvisor_reviews: Optional[int]
     certificazione_1: Optional[str]
     immagine_certificazione_1: Optional[str]
     certificazione_2: Optional[str]
