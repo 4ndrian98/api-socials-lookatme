@@ -46,6 +46,8 @@ class DatoCrawled(Base):
     n_fan_facebook = Column(Integer)
     n_followers_ig = Column(Integer)
     stelle_google = Column(Numeric(2, 1))
+    tripadvisor_rating = Column(Numeric(2, 1))
+    tripadvisor_reviews = Column(Integer)
 
     esercente = relationship("Esercente", back_populates="dati")
 
