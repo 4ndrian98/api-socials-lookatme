@@ -207,6 +207,8 @@ def dashboard(id_esercente: int, token: str = Depends(require_token), db: Sessio
     return {
         "nome": e.nome,
         "logo": e.logo,
+        "colore_sfondo": e.colore_sfondo,
+        "colore_carattere": e.colore_carattere,
         "n_fan_facebook": int(last_crawled.n_fan_facebook) if last_crawled else None,
         "n_followers_ig": int(last_crawled.n_followers_ig) if last_crawled else None,
         "stelle_google": last_crawled.stelle_google if last_crawled else None,
