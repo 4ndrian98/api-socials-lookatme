@@ -563,3 +563,158 @@ def get_weekly_crawl_status(
             for j in jobs
         ]
     }
+
+# ---------- TRIPADVISOR INTEGRATION ENDPOINTS ----------
+
+from tripadvisor_service import tripadvisor_service
+
+@app.post("/api/tripadvisor/crawl", response_model=schemas.TripAdvisorResponse)
+def crawl_tripadvisor(
+    payload: schemas.TripAdvisorCrawlRequest,
+    token: str = Depends(require_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Crawl TripAdvisor data per una location
+    """
+    try:
+        # Estrai location_id dall'URL
+        location_id = tripadvisor_service.extract_location_id(payload.tripadvisor_url)
+        
+        if not location_id:
+            raise HTTPException(400, "Impossibile estrarre location_id dall'URL TripAdvisor")
+        
+        # Ottieni i dati combinati
+        combined_data = tripadvisor_service.get_combined_data(location_id)
+        
+        if not combined_data.get("success"):
+            return schemas.TripAdvisorResponse(
+                success=False,
+                error=combined_data.get("error"),
+                message=combined_data.get("message")
+            )
+        
+        return schemas.TripAdvisorResponse(
+            success=True,
+            location_id=location_id,
+            name=combined_data.get("name"),
+            rating=combined_data.get("rating"),
+            reviews_count=combined_data.get("num_reviews") or combined_data.get("reviews_count"),
+            address=combined_data.get("address"),
+            phone=combined_data.get("phone"),
+            website=combined_data.get("website"),
+            reviews=combined_data.get("reviews", [])
+        )
+        
+    except Exception as e:
+        logger.error(f"Errore crawl TripAdvisor: {e}")
+        raise HTTPException(500, f"Errore interno: {str(e)}")
+
+
+@app.post("/api/tripadvisor/integrate/{id_esercente}")
+def integrate_tripadvisor_data(
+    id_esercente: int,
+    tripadvisor_url: str,
+    token: str = Depends(require_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Integra i dati TripAdvisor con un esercente esistente
+    """
+    try:
+        # Verifica che l'esercente esista
+        esercente = db.get(models.Esercente, id_esercente)
+        if not esercente:
+            raise HTTPException(404, "Esercente non trovato")
+        
+        # Estrai location_id dall'URL
+        location_id = tripadvisor_service.extract_location_id(tripadvisor_url)
+        
+        if not location_id:
+            raise HTTPException(400, "Impossibile estrarre location_id dall'URL TripAdvisor")
+        
+        # Ottieni i dati TripAdvisor
+        combined_data = tripadvisor_service.get_combined_data(location_id)
+        
+        if not combined_data.get("success"):
+            raise HTTPException(500, f"Errore nel crawl TripAdvisor: {combined_data.get('error')}")
+        
+        # Aggiorna l'esercente con l'URL TripAdvisor
+        esercente.tripadvisor_url = tripadvisor_url
+        
+        # Ottieni o crea un nuovo record dati_crawled per oggi
+        today = date.today()
+        now = datetime.now()
+        
+        dato_crawled = db.query(models.DatoCrawled).filter(
+            models.DatoCrawled.id_esercente == id_esercente,
+            models.DatoCrawled.data == today
+        ).first()
+        
+        if not dato_crawled:
+            dato_crawled = models.DatoCrawled(
+                id_esercente=id_esercente,
+                data=today,
+                ora=now.time().replace(microsecond=0),
+                n_fan_facebook=0,
+                n_followers_ig=0,
+                stelle_google=None,
+                tripadvisor_rating=None,
+                tripadvisor_reviews=None
+            )
+            db.add(dato_crawled)
+        
+        # Aggiorna con i dati TripAdvisor
+        if combined_data.get("rating"):
+            dato_crawled.tripadvisor_rating = float(combined_data["rating"])
+        
+        if combined_data.get("num_reviews"):
+            dato_crawled.tripadvisor_reviews = int(combined_data["num_reviews"])
+        elif combined_data.get("reviews_count"):
+            dato_crawled.tripadvisor_reviews = int(combined_data["reviews_count"])
+        
+        db.commit()
+        db.refresh(dato_crawled)
+        
+        return {
+            "success": True,
+            "esercente_id": id_esercente,
+            "location_id": location_id,
+            "tripadvisor_rating": dato_crawled.tripadvisor_rating,
+            "tripadvisor_reviews": dato_crawled.tripadvisor_reviews,
+            "updated_at": now.isoformat(),
+            "message": "Dati TripAdvisor integrati con successo"
+        }
+        
+    except Exception as e:
+        logger.error(f"Errore integrazione TripAdvisor: {e}")
+        raise HTTPException(500, f"Errore interno: {str(e)}")
+
+
+@app.get("/api/tripadvisor/test")
+def test_tripadvisor_api(
+    location_id: str = "123456",
+    token: str = Depends(require_token)
+):
+    """
+    Test endpoint per verificare che l'API TripAdvisor funzioni
+    """
+    try:
+        # Test con location_id di esempio
+        combined_data = tripadvisor_service.get_combined_data(location_id)
+        
+        return {
+            "test_location_id": location_id,
+            "api_configured": bool(tripadvisor_service.api_key),
+            "api_key_present": "✅" if tripadvisor_service.api_key else "❌",
+            "response": combined_data,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "test_location_id": location_id,
+            "api_configured": False,
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
