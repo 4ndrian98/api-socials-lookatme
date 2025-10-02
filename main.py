@@ -173,6 +173,8 @@ def vetrina(id_esercente: int, token: str = Depends(require_token), db: Session 
         "n_fan_facebook": int(last_crawled.n_fan_facebook) if last_crawled else None,
         "n_followers_ig": int(last_crawled.n_followers_ig) if last_crawled else None,
         "stelle_google": last_crawled.stelle_google if last_crawled else None,
+        "tripadvisor_rating": last_crawled.tripadvisor_rating if last_crawled else None,
+        "tripadvisor_reviews": int(last_crawled.tripadvisor_reviews) if last_crawled and last_crawled.tripadvisor_reviews else None,
         "certificazione_1": e.certificazione_1,
         "immagine_certificazione_1": e.immagine_certificazione_1,
         "certificazione_2": e.certificazione_2,
