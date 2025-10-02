@@ -215,3 +215,23 @@ class CrawlStatusResponse(BaseModel):
 class SocialMappingRequest(BaseModel):
     id_esercente: int
     mappings: List[Dict[str, Any]]  # [{'platform': 'instagram', 'url': '...', 'params': {...}}]
+
+# -------- TRIPADVISOR SCHEMAS --------
+
+class TripAdvisorCrawlRequest(BaseModel):
+    tripadvisor_url: str
+    language: Optional[str] = "it"
+    currency: Optional[str] = "EUR"
+
+class TripAdvisorResponse(BaseModel):
+    success: bool
+    location_id: Optional[str] = None
+    name: Optional[str] = None
+    rating: Optional[float] = None
+    reviews_count: Optional[int] = None
+    address: Optional[str] = None
+    phone: Optional[str] = None
+    website: Optional[str] = None
+    reviews: Optional[List[Dict]] = []
+    error: Optional[str] = None
+    message: Optional[str] = None
